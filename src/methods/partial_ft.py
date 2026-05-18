@@ -15,7 +15,8 @@ class PartialFineTuneClassifier(nn.Module):
         Submodules of ``backbone`` to make trainable after the initial freeze.
         Pass references to the actual submodule objects, e.g.::
 
-            last_block = list(backbone.transformer.layers)[-1]
+            # HuggingFace ViT
+            last_block = list(backbone.vit.encoder.layer)[-1]
             PartialFineTuneClassifier(backbone, D, K, modules_to_unfreeze=[last_block])
     """
 
