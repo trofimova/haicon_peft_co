@@ -12,6 +12,7 @@ from tqdm.auto import tqdm
 @dataclass
 class History:
     train_loss: List[float] = field(default_factory=list)
+    train_acc: List[float] = field(default_factory=list)
     val_loss: List[float] = field(default_factory=list)
     val_acc: List[float] = field(default_factory=list)
 
@@ -69,6 +70,7 @@ def train_model(
         model.train()
         running_loss = 0.0
         n = 0
+        correct = 0
 
         for x, y in train_loader:
             x, y = x.to(device), y.to(device)
@@ -79,9 +81,12 @@ def train_model(
             optimizer.step()
 
             running_loss += loss.item() * x.size(0)
+            pred = logits.argmax(dim=-1)
+            correct += (pred == y).sum().item()
             n += x.size(0)
 
         history.train_loss.append(running_loss / max(n, 1))
+        history.train_acc.append(correct / max(n, 1))
         val_metrics = evaluate(model, val_loader, device=device)
         history.val_loss.append(val_metrics["loss"])
         history.val_acc.append(val_metrics["acc"])

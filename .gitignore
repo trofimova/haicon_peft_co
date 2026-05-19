@@ -29,3 +29,7 @@ env/
 *.pth
 *.bin
 data/
+
+# Other
+.vscode/
+outputs/

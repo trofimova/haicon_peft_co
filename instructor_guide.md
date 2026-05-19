@@ -11,7 +11,7 @@ Build practical intuition for **how PEFT methods differ**, not just in name, but
 ## Recommended flow
 
 ### Part 1 — map the space
-Use `notebooks/01_where_peft_operates.ipynb`.
+Use `notebooks/01_peft_building_blocks.ipynb`.
 
 Main prompts:
 - What exactly is trainable?
@@ -25,7 +25,7 @@ Expected takeaways:
 - **Linear probing** only changes the readout head.
 
 ### Part 2 — compare training behavior
-Use `notebooks/02_convergence_and_what_to_use_when.ipynb`.
+Use `notebooks/02_peft_your_model.ipynb`.
 
 Main prompts:
 - Which method improves fastest early on?
@@ -38,18 +38,20 @@ Expected takeaways:
 - prompt methods can be attractive when freezing the backbone is a hard requirement
 - full/partial finetuning remain useful references
 
-### Part 3 — connect to a real model
-Use `notebooks/03_vit_cifar_peft_comparison.ipynb`.
+### Part 3 — few-shot adaptation under domain gap
+Use `notebooks/03_few_shot_evaluation.ipynb`.
 
 Main prompts:
-- Do the toy intuitions still hold on a real pretrained vision model?
-- Which methods remain practical in Colab?
-- What changes when optimization becomes less toy-like?
+- What changes when labels are scarce?
+- Which method holds up when validation data is shifted away from the training domain?
+- Does moving more parameters help, or does it overfit the few-shot source data?
+- Does one labeled target-domain example per class change the preferred method?
 
 Expected takeaways:
-- the “where the method acts” picture still matters
-- runtime and implementation complexity become part of the method choice
-- there is no universally best PEFT method; constraints decide
+- few-shot performance and shifted-domain performance can favor different methods
+- trainable parameter count is a constraint, not a quality guarantee
+- a source-only winner may not remain best after adding even a tiny amount of target data
+- there is no universally best PEFT method; data availability and domain gap decide
 
 ## Runtime expectations
 
