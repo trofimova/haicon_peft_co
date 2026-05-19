@@ -1,179 +1,106 @@
-# HAICON 2026 — A Practical Tour of PEFT & Co.
+# HAICON 2026 — A Practical Tour of PEFT
 
-Minimal, Colab-friendly workshop materials for building intuition around **parameter-efficient finetuning (PEFT)**.
-
-This repo is organized around three layers:
-
-1. **Concept notebook:** *where* different methods operate  
-2. **Dynamics notebook:** *how* they converge and what tradeoffs appear in practice  
-3. **Realistic notebook:** a small ViT + CIFAR benchmark to connect the intuition back to a real pretrained vision model
-4. **Interactive notebook:** a choose-your-method playground for attendees
+Minimal, Colab-friendly workshop materials for building intuition around **parameter-efficient fine-tuning (PEFT)** applied to vision transformers.
 
 ## Repo layout
 
 ```text
 .
-├── README.md
-├── requirements.txt
-├── instructor_guide.md
-├── .gitignore
 ├── notebooks/
-│   ├── 01_where_peft_operates.ipynb
-│   ├── 02_convergence_and_what_to_use_when.ipynb
-│   ├── 03_vit_cifar_peft_comparison.ipynb
-│   └── 04_interactive_peft_explorer.ipynb
+│   ├── 01_peft_building_blocks.ipynb   # anatomy guide — what each method touches
+│   └── 02_peft_your_model.ipynb        # interactive template — plug in your data
 └── src/
-    ├── __init__.py
-    ├── data.py
-    ├── training.py
-    ├── visualization.py
+    ├── training.py                     # train loop, evaluation, helpers
     └── methods/
-        ├── __init__.py
+        ├── configs.py                  # hyperparameter dataclasses for each method
         ├── linear_probe.py
+        ├── bitfit.py
         ├── prompt_tuning.py
+        ├── lora.py
         ├── adapters.py
-        └── lora.py
+        └── partial_ft.py
 ```
 
-## Who this is for
+## Notebooks
 
-This material is meant for a workshop audience that wants:
-- a **shared mental model** for adaptation strategies
-- small, inspectable experiments instead of giant training runs
-- a practical answer to **“what should I use when?”**
+### `01_peft_building_blocks.ipynb` — Anatomy guide
 
-## Notebook overview
+Loads `WinKawaks/vit-small-patch16-224` and walks through all six PEFT methods one by one, with a dedicated visualisation for each.
 
-### `01_where_peft_operates.ipynb`
-A tiny frozen transformer-style setup that shows **where each method intervenes**.
+| Section | Method | What you see |
+|---------|--------|--------------|
+| 1 | Linear Probe | head weight heatmap |
+| 2 | BitFit | per-block bias param counts (log scale) + bias type breakdown |
+| 3 | Visual Prompt Tuning | token sequence diagram, prompt value heatmap, per-position L2 norm |
+| 4 | LoRA | W₀, A, B and ΔW matrix heatmaps for the last adapted layer |
+| 5 | Adapter | bottleneck down/up projection heatmaps + near-zero residual check |
+| 6 | Partial Fine-tuning | trainable vs frozen params per block for last-4 / last-8 / all-12 blocks |
+| 7 | Summary | trainable param count bar chart + "what does each method touch?" grid |
 
-Methods highlighted:
-- linear probing
-- prompt tuning / soft prompts
-- adapters
-- LoRA
-- BitFit
+### `02_peft_your_model.ipynb` — Interactive template
 
-Focus:
-- input-space vs hidden-state vs weight-space intervention
-- frozen vs trainable parameters
-- visual intuition rather than benchmark realism
+A fill-in-the-blanks notebook for applying any PEFT method to your own model and dataset.
 
-### `02_convergence_and_what_to_use_when.ipynb`
-A shared training setup comparing methods on:
-- train loss
-- validation accuracy
-- trainable parameter count
-- practical takeaways
+- **Section 1 — Config:** choose `METHOD`, dataset size, training hyperparams
+- **Section 2 — Backbone:** loads a HuggingFace ViT; swap in any backbone
+- **Section 3 — Dataset:** CIFAR-10 by default with configurable subset size; replace with any `torch.utils.data.Dataset`
+- **Section 4 — Build model:** `build_model()` reads hyperparams from `src/methods/configs.py`
+- **Section 5 — Train:** standard AdamW loop with loss + accuracy curves
+- **Section 6 — Evaluate:** training curves and final accuracy
+- **Section 7 — Compare all methods:** runs all six methods and produces a 6-panel efficiency dashboard (accuracy, params, training time, inference latency, peak memory)
 
-Focus:
-- which methods are strong cheap baselines
-- how parameter budget interacts with performance
-- a first pass at “what to use when”
+## `src/methods/` — Building blocks
 
-### `03_vit_cifar_peft_comparison.ipynb`
-A more realistic **vision** example using a pretrained ViT checkpoint and CIFAR-10 (or a subset).
+Each file is a self-contained PyTorch `nn.Module` wrapper around a frozen backbone.
 
-Included by default:
-- linear probing
-- partial finetuning
-- LoRA
-- visual prompt tuning
+| File | Class | What it trains |
+|------|-------|----------------|
+| `linear_probe.py` | `LinearProbeModel` | Linear head only |
+| `bitfit.py` | `BitFitClassifier` | All bias terms in the backbone (Zaken et al. 2021) |
+| `prompt_tuning.py` | `PromptTunedClassifier` | k learnable token vectors inserted between CLS and patch tokens (VPT, Jia et al. 2022) |
+| `lora.py` | `LoRAClassifier` | Low-rank decomposition ΔW = BA on selected attention projections (Hu et al. 2022) |
+| `adapters.py` | `AdapterHeadClassifier` | Bottleneck module (down → GELU → up + residual) appended after the backbone |
+| `partial_ft.py` | `PartialFineTuneClassifier` | Selected transformer blocks unfrozen |
 
-Optional extension:
-- adapters
+### `configs.py` — Method hyperparameters
 
-This notebook is intentionally scoped to stay shareable in Colab.
+Default hyperparameters for each method live in `src/methods/configs.py` as dataclasses, so the notebook config cell stays clean:
 
-### `04_interactive_peft_explorer.ipynb`
-A widget-based notebook for attendees to **pick a PEFT method from a dropdown**, choose a task regime, and run a very small experiment.
+```python
+# src/methods/configs.py
+LoRAConfig(rank=8, target_modules=["query", "value"])
+VisualPromptConfig(num_prompt_tokens=10)
+AdapterConfig(bottleneck_dim=32)
+PartialFTConfig(n_blocks=1)
+```
 
-Included methods:
-- linear probing
-- prompt tuning
-- adapters
-- LoRA
-- BitFit
-- partial finetuning
+Edit this file to change hyperparams without touching the notebook.
 
-Focus:
-- self-directed exploration
-- method cards and quick heuristics
-- toy curves + one method-specific visualization
-- “what should I use when?” discussion
+## Running in Colab
 
-This notebook works well as the interactive capstone at the end of the workshop. It now includes a top-of-notebook Colab setup cell for `ipywidgets`, plus a simple parameter-budget game and leaderboard-ready result block.
+Both notebooks include an auto-setup cell that clones the repo and installs dependencies when running in Colab. Just open the notebook and run all cells — no manual setup needed.
 
-## Suggested workshop flow
+```
+https://github.com/trofimova/haicon_peft_co
+```
 
-A 75–90 minute version works well:
-
-1. **10–15 min** — explain the adaptation landscape
-2. **20 min** — run Notebook 1 together
-3. **20 min** — run Notebook 2 and discuss curves
-4. **15–20 min** — use Notebook 3 to connect the toy intuition to a real pretrained model
-5. **10–15 min** — let attendees explore Notebook 4 in pairs or individually
-6. **5 min** — wrap up with the selection heuristics
-
-## Minimal setup
-
-### Local
+## Local setup
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install torch torchvision transformers peft matplotlib pandas tqdm
 ```
 
-### Colab
+## Quick method reference
 
-Upload the repo or clone it, then install:
+| Method | Trainable params | Changes forward pass? | Good default when… |
+|--------|-----------------|----------------------|---------------------|
+| Linear Probe | ~4 K | no | features already align with your task |
+| BitFit | ~56 K | no | very tight param budget |
+| VPT | ~16 K | yes | you want zero backbone modification |
+| LoRA | ~150 K | no | general-purpose first PEFT baseline |
+| Adapter | ~29 K | no | modular per-task packaging matters |
+| Partial FT | 1 M+ | no | you have data and want maximum accuracy |
 
-```python
-!pip install -q -r requirements.txt
-```
-
-If running the ViT notebook in Colab, a GPU is recommended.
-
-## “What to use when?” — rough workshop heuristics
-
-These are intentionally simplified teaching heuristics:
-
-- **Linear probing**
-  - start here when you want a very cheap baseline
-  - great when pretrained features already separate your target task well
-
-- **Prompt tuning / visual prompt tuning**
-  - useful when you want to preserve the backbone almost entirely
-  - attractive when you want a tiny adaptation footprint or easy swapping across tasks
-
-- **Adapters**
-  - useful when you want modularity and explicit hidden-state intervention
-  - often nice for multi-task or per-task packaging
-
-- **LoRA**
-  - often the best default first PEFT baseline
-  - strong balance of parameter efficiency, flexibility, and performance
-
-- **Partial / full finetuning**
-  - use when you have enough data/compute and the gap matters
-  - still the reference point for maximum task-specific adaptation
-
-## Notes
-
-- The first two notebooks are **intentionally minimalistic** and designed for understanding.
-- The third notebook is more realistic but still optimized for workshop runtime.
-- The helper code in `src/` is small on purpose so participants can actually read it.
-
-## License / reuse
-
-Feel free to adapt this structure for teaching, tutorials, and GitHub sharing.
-
-
-## Notebooks
-
-- `01_where_peft_operates.ipynb` — conceptual map of where PEFT intervenes
-- `02_convergence_and_what_to_use_when.ipynb` — compare training behavior and trade-offs
-- `03_vit_cifar_peft_comparison.ipynb` — more realistic vision benchmark
-- `04_interactive_peft_explorer.ipynb` — attendee playground with method dropdowns, an in-notebook setup cell for `ipywidgets`, and a parameter-budget score
-- `05_inspect_the_change.ipynb` — inspect what each method actually changes inside the model
+*(Numbers for ViT-small-patch16-224, 10-class head.)*
