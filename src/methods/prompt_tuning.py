@@ -24,7 +24,7 @@ class VisualPrompt(nn.Module):
     def insert(self, embeddings: torch.Tensor) -> torch.Tensor:
         """Insert prompt tokens between CLS and patch tokens."""
         B = embeddings.size(0)
-        prompts = self.tokens.expand(B, -1, -1)
+        prompts = self.tokens.to(embeddings.device).expand(B, -1, -1)
         return torch.cat([embeddings[:, :1], prompts, embeddings[:, 1:]], dim=1)
 
 
