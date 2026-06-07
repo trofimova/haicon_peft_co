@@ -207,12 +207,9 @@ def plot_generalization_summary(df: pd.DataFrame):
     required = {
         "train_acc",
         "source_acc",
-        "target_acc",
-        "generalization_gap",
         "domain_gap",
         "train_loss",
         "source_loss",
-        "target_loss",
     }
     if not required.issubset(df.columns):
         missing = ", ".join(sorted(required - set(df.columns)))
@@ -223,18 +220,17 @@ def plot_generalization_summary(df: pd.DataFrame):
     methods = sorted(plot_df["method"].unique())
     colors = method_colors(methods)
 
-    fig, axes = plt.subplots(2, 3, figsize=(15, 8))
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4))
 
     for method, group in plot_df.groupby("method"):
         group = group.sort_values("shots_per_class")
         color = colors[method]
         for metric, linestyle, label in [
             ("train_acc", "-", "train"),
-            ("source_acc", "--", "source val"),
-            ("target_acc", ":", "target val"),
+            ("source_acc", "--", "in-domain val"),
         ]:
             yerr = group[f"{metric}_std"] if f"{metric}_std" in group.columns else None
-            axes[0, 0].errorbar(
+            axes[0].errorbar(
                 group["shots_per_class"],
                 group[metric],
                 yerr=yerr,
@@ -247,11 +243,10 @@ def plot_generalization_summary(df: pd.DataFrame):
 
         for metric, linestyle, label in [
             ("train_loss", "-", "train"),
-            ("source_loss", "--", "source val"),
-            ("target_loss", ":", "target val"),
+            ("source_loss", "--", "in-domain val"),
         ]:
             yerr = group[f"{metric}_std"] if f"{metric}_std" in group.columns else None
-            axes[1, 0].errorbar(
+            axes[1].errorbar(
                 group["shots_per_class"],
                 group[metric],
                 yerr=yerr,
@@ -262,30 +257,18 @@ def plot_generalization_summary(df: pd.DataFrame):
                 label=f"{method} {label}",
             )
 
-    axes[0, 0].set_title("Accuracy: train vs source vs target")
-    axes[0, 0].set_ylabel("Accuracy")
-    axes[0, 0].set_ylim(0, 1)
-    axes[1, 0].set_title("Loss: train vs source vs target")
-    axes[1, 0].set_ylabel("Loss")
+    axes[0].set_title("Accuracy: train vs in-domain")
+    axes[0].set_ylabel("Accuracy")
+    axes[0].set_ylim(0, 1)
+    axes[1].set_title("Loss: train vs in-domain")
+    axes[1].set_ylabel("Loss")
 
     plot_metric_lines(
-        axes[0, 1], plot_df, "generalization_gap", colors,
-        "Train acc - source acc", "Generalization gap",
-    )
-    plot_metric_lines(
-        axes[0, 2], plot_df, "domain_gap", colors,
-        "Source acc - target acc", "Domain gap",
-    )
-    plot_metric_lines(
-        axes[1, 1], plot_df, "source_loss", colors,
-        "Source validation loss", "Source validation loss",
-    )
-    plot_metric_lines(
-        axes[1, 2], plot_df, "target_loss", colors,
-        "Target validation loss", "Target validation loss",
+        axes[2], plot_df, "domain_gap", colors,
+        "In-domain acc - shifted-domain acc", "Domain gap",
     )
 
-    for ax in axes.ravel():
+    for ax in axes:
         format_shot_axis(ax, plot_df["shots_per_class"])
         ax.grid(True, alpha=0.3)
 
@@ -295,15 +278,14 @@ def plot_generalization_summary(df: pd.DataFrame):
     ]
     split_handles = [
         Line2D([0], [0], color="black", lw=2, linestyle="-", label="train"),
-        Line2D([0], [0], color="black", lw=2, linestyle="--", label="source val"),
-        Line2D([0], [0], color="black", lw=2, linestyle=":", label="target val"),
+        Line2D([0], [0], color="black", lw=2, linestyle="--", label="in-domain val"),
     ]
-    method_legend = axes[0, 0].legend(
+    method_legend = axes[0].legend(
         handles=method_handles, title="Method", fontsize=8, title_fontsize=9,
         loc="lower right", handlelength=3.2,
     )
-    axes[0, 0].add_artist(method_legend)
-    axes[1, 0].legend(
+    axes[0].add_artist(method_legend)
+    axes[1].legend(
         handles=split_handles, title="Split", fontsize=8, title_fontsize=9,
         loc="upper right", handlelength=4.0,
     )

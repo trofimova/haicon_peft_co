@@ -17,8 +17,10 @@ from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset
 from transformers import ViTModel
 
 from src.data import make_dataset_loaders
+from src.methods.bitfit import BitFitClassifier
 from src.methods.linear_probe import LinearProbeModel
 from src.methods.lora import LoRAClassifier
+from src.methods.partial_ft import PartialFineTuneClassifier
 from src.methods.prompt_tuning import PromptTunedClassifier
 from src.training import count_trainable_parameters, evaluate, freeze_module, train_model
 
@@ -49,6 +51,7 @@ class WorkshopConfig:
     lora_rank: int = 8
     lora_target: list[str] = field(default_factory=lambda: ["query", "value"])
     num_prompt_tokens: int = 8
+    partial_n_blocks: int = 1
 
     default_epochs: int = 3
     epochs_by_shot: dict[int, int] = field(default_factory=dict)
@@ -56,8 +59,10 @@ class WorkshopConfig:
     lr_by_method: dict[str, float] = field(
         default_factory=lambda: {
             "linear_probe": 5e-3,
+            "bitfit": 1e-3,
             "lora": 3e-3,
             "visual_prompt": 3e-3,
+            "partial_ft": 1e-4,
             "full_ft": 1e-5,
         }
     )
@@ -296,6 +301,8 @@ def build_model(method: str, backbone: nn.Module, feature_dim: int, num_classes:
 
     if method == "linear_probe":
         return LinearProbeModel(bb, feature_dim, num_classes)
+    if method == "bitfit":
+        return BitFitClassifier(bb, feature_dim, num_classes)
     if method == "lora":
         return LoRAClassifier(
             bb,
@@ -311,10 +318,22 @@ def build_model(method: str, backbone: nn.Module, feature_dim: int, num_classes:
             num_classes,
             num_prompt_tokens=config.num_prompt_tokens,
         )
+    if method == "partial_ft":
+        blocks = list(bb.vit.encoder.layer)
+        n_blocks = max(0, min(config.partial_n_blocks, len(blocks)))
+        return PartialFineTuneClassifier(
+            bb,
+            feature_dim,
+            num_classes,
+            modules_to_unfreeze=blocks[-n_blocks:] if n_blocks else [],
+        )
     if method == "full_ft":
         return FullFineTuneClassifier(bb, feature_dim, num_classes)
 
-    raise ValueError("Unknown method. Choose from: linear_probe, lora, visual_prompt, full_ft")
+    raise ValueError(
+        "Unknown method. Choose from: linear_probe, bitfit, lora, "
+        "visual_prompt, partial_ft, full_ft"
+    )
 
 
 def optimizer_for(method: str, model: nn.Module, config: WorkshopConfig):
