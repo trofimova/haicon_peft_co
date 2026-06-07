@@ -1,11 +1,6 @@
 from src.methods.linear_probe import LinearProbeModel
 from src.methods.adapters import BottleneckAdapter, AdapterHeadClassifier
-from src.methods.prompt_tuning import (
-    LegacyPromptTunedClassifier,
-    PatchEmbeddingPrompt,
-    PromptTunedClassifier,
-    VisualPrompt,
-)
+from src.methods.prompt_tuning import PromptTunedClassifier, VisualPrompt
 from src.methods.lora import LoRAClassifier, apply_lora
 from src.methods.bitfit import BitFitClassifier
 from src.methods.partial_ft import PartialFineTuneClassifier
@@ -20,8 +15,6 @@ __all__ = [
     "BottleneckAdapter",
     "AdapterHeadClassifier",
     "VisualPrompt",
-    "PatchEmbeddingPrompt",
-    "LegacyPromptTunedClassifier",
     "PromptTunedClassifier",
     "LoRAClassifier",
     "apply_lora",
