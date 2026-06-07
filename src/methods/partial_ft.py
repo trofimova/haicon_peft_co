@@ -16,7 +16,7 @@ class PartialFineTuneClassifier(nn.Module):
         Pass references to the actual submodule objects, e.g.::
 
             # HuggingFace ViT
-            last_block = list(backbone.vit.encoder.layer)[-1]
+            last_block = list(backbone.vit.layers)[-1]
             PartialFineTuneClassifier(backbone, D, K, modules_to_unfreeze=[last_block])
     """
 

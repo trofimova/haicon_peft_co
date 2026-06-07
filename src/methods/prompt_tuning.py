@@ -56,6 +56,9 @@ class PromptTunedClassifier(nn.Module):
 
         embeddings = vit.embeddings(x)              # [B, 1+N, D]
         embeddings = self.prompt.insert(embeddings) # [B, 1+k+N, D]
-        hidden = vit.encoder(embeddings).last_hidden_state
+        hidden = embeddings
+        for layer in vit.layers:
+            out = layer(hidden)
+            hidden = out[0] if isinstance(out, tuple) else out
         hidden = vit.layernorm(hidden)
         return self.head(hidden[:, 0])              # CLS token → logits
