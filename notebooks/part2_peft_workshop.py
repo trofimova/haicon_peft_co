@@ -16,7 +16,7 @@ import torch.nn.functional as F
 from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset
 from transformers import ViTModel
 
-from src.data import make_dataset_loaders
+from src.data import IMAGENET_MEAN, IMAGENET_STD, make_dataset_loaders
 from src.methods.bitfit import BitFitClassifier
 from src.methods.linear_probe import LinearProbeModel
 from src.methods.lora import LoRAClassifier
@@ -173,6 +173,82 @@ def get_label(dataset: Dataset, idx: int) -> int:
 
     _, label = dataset[idx]
     return int(torch.as_tensor(label).reshape(-1)[0].item())
+
+
+def unwrap_dataset(dataset: Dataset) -> Dataset:
+    while isinstance(dataset, Subset):
+        dataset = dataset.dataset
+    if hasattr(dataset, "dataset"):
+        return unwrap_dataset(dataset.dataset)
+    return dataset
+
+
+def get_class_names(dataset: Dataset, num_classes: int) -> list[str]:
+    base_dataset = unwrap_dataset(dataset)
+    if hasattr(base_dataset, "classes"):
+        return list(base_dataset.classes)
+    if hasattr(base_dataset, "dataset"):
+        nested = unwrap_dataset(base_dataset.dataset)
+        if hasattr(nested, "classes"):
+            return list(nested.classes)
+    return [str(i) for i in range(num_classes)]
+
+
+def denormalize_imagenet(x: torch.Tensor) -> torch.Tensor:
+    mean = torch.tensor(IMAGENET_MEAN, dtype=x.dtype, device=x.device).view(3, 1, 1)
+    std = torch.tensor(IMAGENET_STD, dtype=x.dtype, device=x.device).view(3, 1, 1)
+    return (x * std + mean).clamp(0, 1)
+
+
+def get_sample_images(
+    config: WorkshopConfig | None = None,
+    split: str = "train",
+    examples_per_class: int = 1,
+    max_classes: int | None = None,
+    denormalize: bool = True,
+) -> list[tuple[torch.Tensor, str]]:
+    """Return a small class-balanced image sample for notebook visualization."""
+    config = config or WorkshopConfig()
+    bundle = make_dataset_loaders(
+        config.dataset_name,
+        batch_size=config.batch_size,
+        num_workers=config.num_workers,
+        root=config.data_root,
+        image_size=config.image_size,
+        subset_fraction=config.data_subset_fraction,
+        seed=config.seed,
+        medmnist_name=config.medmnist_name,
+    )
+
+    datasets_by_split = {
+        "train": bundle.train_dataset,
+        "val": bundle.val_dataset,
+        "test": bundle.test_dataset,
+    }
+    if split not in datasets_by_split:
+        raise ValueError("split must be one of: train, val, test")
+
+    dataset = datasets_by_split[split]
+    class_names = get_class_names(dataset, bundle.num_classes)
+    class_limit = bundle.num_classes if max_classes is None else min(max_classes, bundle.num_classes)
+    counts = defaultdict(int)
+    examples = []
+
+    for idx in range(len(dataset)):
+        label_idx = get_label(dataset, idx)
+        if label_idx >= class_limit or counts[label_idx] >= examples_per_class:
+            continue
+
+        image, _ = dataset[idx]
+        if denormalize:
+            image = denormalize_imagenet(image)
+        examples.append((image.cpu(), class_names[label_idx]))
+        counts[label_idx] += 1
+
+        if len(examples) >= class_limit * examples_per_class:
+            break
+
+    return examples
 
 
 def class_index_map_from_dataset(dataset: Dataset, num_classes: int):
